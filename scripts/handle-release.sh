@@ -2,10 +2,8 @@
 
 set -e
 
-# Set up .npmrc for publishing
 echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
 
-# Determine the version bump based on the latest commit message
 LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
 
 if [[ $LAST_COMMIT_MSG == patch:* ]]; then
@@ -46,15 +44,26 @@ has_changes() {
   fi
 }
 
+ensure_version_exists() {
+  PACKAGE_PATH=$1
+  if ! grep -q '"version":' $PACKAGE_PATH/package.json; then
+    echo "No version found in $PACKAGE_PATH/package.json. Setting initial version to 0.0.0"
+    jq '.version = "0.0.0"' $PACKAGE_PATH/package.json > tmp.json && mv tmp.json $PACKAGE_PATH/package.json
+  fi
+}
+
 bump_version() {
   PACKAGE_NAME=$1
-  VERSION_BUMP=$2
+  PACKAGE_PATH=$2
+  VERSION_BUMP=$3
   NPM_VERSION=$(get_latest_npm_version $PACKAGE_NAME)
   
+  ensure_version_exists $PACKAGE_PATH
+
   if [[ "$NPM_VERSION" == "none" ]]; then
-    echo "1.0.0"
+    yarn workspace $PACKAGE_NAME version 1.0.0 --deferred
   else
-    yarn version $VERSION_BUMP --deferred
+    yarn workspace $PACKAGE_NAME version $VERSION_BUMP --deferred
   fi
 }
 
@@ -74,7 +83,7 @@ SHARED_PUBLISHED=false
 if [[ -n "$CHANGED_SHARED" ]]; then
   echo "Pack-a package has changed. Publishing pack-a."
 
-  bump_version $SHARED_PACKAGE $VERSION_BUMP
+  bump_version $SHARED_PACKAGE "packages/pack-a" $VERSION_BUMP
   yarn version apply
   yarn workspace $SHARED_PACKAGE build
   npm publish --workspace $SHARED_PACKAGE --access public
@@ -90,7 +99,7 @@ fi
 if [[ -n "$CHANGED_ADMIN" ]] || [[ "$SHARED_PUBLISHED" == true ]]; then
   echo "Pack-b package has changed or pack-a was published. Publishing pack-b."
 
-  bump_version $ADMIN_PACKAGE $VERSION_BUMP
+  bump_version $ADMIN_PACKAGE "packages/pack-b" $VERSION_BUMP
   yarn version apply
   yarn workspace $ADMIN_PACKAGE build
   npm publish --workspace $ADMIN_PACKAGE --access public
@@ -102,5 +111,4 @@ if [[ -n "$CHANGED_ADMIN" ]] || [[ "$SHARED_PUBLISHED" == true ]]; then
 fi
 
 echo "Publishing process completed successfully."
-
 rm -f ~/.npmrc
