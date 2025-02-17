@@ -21,7 +21,6 @@ fi
 
 echo "Version bump type detected: $VERSION_BUMP"
 
-# Get the latest tag for a specific package
 get_latest_tag() {
   PACKAGE_NAME=$1
   LATEST_TAG=$(git tag -l "${PACKAGE_NAME}@*" | sort -V | tail -n 1)
@@ -32,7 +31,6 @@ get_latest_tag() {
   fi
 }
 
-# Compare changes from the last tag for a specific package
 has_changes() {
   PACKAGE_PATH=$1
   LAST_TAG=$2
@@ -56,20 +54,19 @@ echo "Checking for changes in pack-a and pack-b packages..."
 
 SHARED_PUBLISHED=false
 
-# Publish pack-a package if changed
 if [[ -n "$CHANGED_SHARED" ]]; then
   echo "Pack-a package has changed. Publishing pack-a."
 
   if [[ "$LAST_SHARED_TAG" == "none" ]]; then
-    yarn workspace $SHARED_PACKAGE version 1.0.0 --no-git-tag-version
+    yarn workspace $SHARED_PACKAGE version 1.0.0 --deferred
   else
-    yarn workspace $SHARED_PACKAGE version $VERSION_BUMP --no-git-tag-version
+    yarn workspace $SHARED_PACKAGE version $VERSION_BUMP --deferred
   fi
 
+  yarn version apply
   yarn workspace $SHARED_PACKAGE build
   npm publish --workspace $SHARED_PACKAGE --access public
   
-  # Tag the new pack-a version
   NEW_SHARED_VERSION=$(node -p "require('./packages/pack-a/package.json').version")
   NEW_SHARED_TAG="${SHARED_PACKAGE}@${NEW_SHARED_VERSION}"
   git tag "$NEW_SHARED_TAG"
@@ -78,20 +75,19 @@ if [[ -n "$CHANGED_SHARED" ]]; then
   SHARED_PUBLISHED=true
 fi
 
-# Publish pack-b package if changed or if pack-a was published
 if [[ -n "$CHANGED_ADMIN" ]] || [[ "$SHARED_PUBLISHED" == true ]]; then
   echo "Pack-b package has changed or pack-a was published. Publishing pack-b."
 
   if [[ "$LAST_ADMIN_TAG" == "none" ]]; then
-    yarn workspace $ADMIN_PACKAGE version 1.0.0 --no-git-tag-version
+    yarn workspace $ADMIN_PACKAGE version 1.0.0 --deferred
   else
-    yarn workspace $ADMIN_PACKAGE version $VERSION_BUMP --no-git-tag-version
+    yarn workspace $ADMIN_PACKAGE version $VERSION_BUMP --deferred
   fi
 
+  yarn version apply
   yarn workspace $ADMIN_PACKAGE build
   npm publish --workspace $ADMIN_PACKAGE --access public
 
-  # Tag the new pack-b version
   NEW_ADMIN_VERSION=$(node -p "require('./packages/pack-b/package.json').version")
   NEW_ADMIN_TAG="${ADMIN_PACKAGE}@${NEW_ADMIN_VERSION}"
   git tag "$NEW_ADMIN_TAG"
@@ -100,5 +96,4 @@ fi
 
 echo "Publishing process completed successfully."
 
-# Clean up npmrc
 rm -f ~/.npmrc
