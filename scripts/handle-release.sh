@@ -90,6 +90,8 @@ fi
 
 yarn config unset yarnPath
 
+yarn config set enablePackageManagerField false
+
 # Commit and push any remaining changes
 if [[ -n $(git status --porcelain) ]]; then
   git add .
