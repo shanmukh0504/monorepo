@@ -70,7 +70,7 @@ publish_package() {
 
   NEW_TAG="${PACKAGE}@${NEW_VERSION}"
   git tag "$NEW_TAG"
-  git push https://x-access-token:${GH_PAT}@github.com/your-username/your-repo.git "$NEW_TAG"
+  git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git "$NEW_TAG"
 
   echo "Published $PACKAGE@$NEW_VERSION"
 }
