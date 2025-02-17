@@ -1,3 +1,38 @@
+#!/bin/bash
+
+set -e
+
+# Set up .npmrc for publishing
+echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
+
+# Determine the version bump based on the latest commit message
+LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
+
+if [[ $LAST_COMMIT_MSG == patch:* ]]; then
+  VERSION_BUMP="patch"
+elif [[ $LAST_COMMIT_MSG == fix:* ]]; then
+  VERSION_BUMP="minor"
+elif [[ $LAST_COMMIT_MSG == feat:* ]]; then
+  VERSION_BUMP="major"
+else
+  echo "Commit message does not match patch, fix, or feat. Skipping publishing."
+  exit 0
+fi
+
+echo "Version bump type detected: $VERSION_BUMP"
+
+# Compare changes from the last tag
+LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+if [[ -n "$LAST_TAG" ]]; then
+  CHANGED_SHARED=$(git diff --name-only "$LAST_TAG" HEAD | grep "packages/pack-a" || true)
+  CHANGED_ADMIN=$(git diff --name-only "$LAST_TAG" HEAD | grep "packages/pack-b" || true)
+else
+  # If no tag exists, assume all packages need publishing
+  CHANGED_SHARED="changed"
+  CHANGED_ADMIN="changed"
+fi
+
+
 # Function to get the latest published version of a package from npm
 get_latest_version() {
   PACKAGE_NAME=$1
