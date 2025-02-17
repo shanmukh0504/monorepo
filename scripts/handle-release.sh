@@ -88,6 +88,8 @@ if [[ -n $(git diff --name-only HEAD~1 HEAD | grep "packages/pack-b") ]]; then
   publish_package "@shanmukh0504/pack-b" "packages/pack-b"
 fi
 
+yarn config unset yarnPath
+
 # Commit and push any remaining changes
 if [[ -n $(git status --porcelain) ]]; then
   git add .
