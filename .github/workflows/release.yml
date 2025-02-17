@@ -1,0 +1,66 @@
+name: Build and Release Monorepo
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+  NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.9.0
+          cache: "yarn"
+
+      - name: Set Yarn Version
+        run: yarn set version 4.3.1
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Build All Packages
+        run: yarn build
+
+  release:
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      issues: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.9.0
+          cache: "yarn"
+
+      - name: Set Yarn Version
+        run: yarn set version 4.3.1
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Make handle-release.sh Executable
+        run: chmod +x scripts/handle-release.sh
+
+      - name: Run Custom Release Script
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ./scripts/handle-release.sh

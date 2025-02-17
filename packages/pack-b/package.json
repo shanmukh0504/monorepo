@@ -1,0 +1,17 @@
+{
+  "name": "@shanmukh0504/pack-b",
+  "version": "1.0.0",
+  "packageManager": "yarn@4.3.1",
+  "main": "dist/index.js",
+  "dependencies": {
+    "@shanmukh0504/pack-a": "workspace:*"
+  },
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc --build",
+    "start": "yarn build && node dist/index.js"
+  },
+  "devDependencies": {
+    "typescript": "5.7.3"
+  }
+}
