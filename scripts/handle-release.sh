@@ -2,50 +2,101 @@
 
 set -e
 
+# Set up .npmrc for publishing
 echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
 
+# Determine the version bump based on the latest commit message
 LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
 
 if [[ $LAST_COMMIT_MSG == patch:* ]]; then
   VERSION_BUMP="patch"
 elif [[ $LAST_COMMIT_MSG == fix:* ]]; then
-  VERSION_BUMP="minor"
+  VERSION_BUMP="patch"
 elif [[ $LAST_COMMIT_MSG == feat:* ]]; then
+  VERSION_BUMP="minor"
+elif [[ $LAST_COMMIT_MSG == major:* ]]; then
   VERSION_BUMP="major"
 else
-  echo "Commit message does not match patch, fix, or feat. Skipping publishing."
+  echo "Commit message does not match patch, fix, feat, or major. Skipping publishing."
   exit 0
 fi
 
 echo "Version bump type detected: $VERSION_BUMP"
 
-# Get the latest tag for a package
+# Function to get the latest tag for a package
 get_latest_tag() {
   PACKAGE=$1
+  git fetch --tags
   git tag -l "${PACKAGE}@*" | sort -V | tail -n 1
 }
 
+# Function to increment the version
+increment_version() {
+  VERSION=$1
+  VERSION_TYPE=$2
+  IFS='.' read -r -a VERSION_PARTS <<< "$VERSION"
+  MAJOR=${VERSION_PARTS[0]}
+  MINOR=${VERSION_PARTS[1]}
+  PATCH=${VERSION_PARTS[2]}
+
+  case $VERSION_TYPE in
+    "major")
+      MAJOR=$((MAJOR + 1))
+      MINOR=0
+      PATCH=0
+      ;;
+    "minor")
+      MINOR=$((MINOR + 1))
+      PATCH=0
+      ;;
+    "patch")
+      PATCH=$((PATCH + 1))
+      ;;
+    *)
+      echo "Invalid version bump type: $VERSION_TYPE"
+      exit 1
+      ;;
+  esac
+
+  echo "${MAJOR}.${MINOR}.${PATCH}"
+}
+
+# Function to publish a package
 publish_package() {
   PACKAGE=$1
   PACKAGE_DIR=$2
 
   LATEST_TAG=$(get_latest_tag $PACKAGE)
-  echo "Latest tag for $PACKAGE is $LATEST_TAG"
+  if [[ -z "$LATEST_TAG" ]]; then
+    CURRENT_VERSION="0.0.0"
+  else
+    CURRENT_VERSION=${LATEST_TAG#*@}
+  fi
+  echo "Current version for $PACKAGE is $CURRENT_VERSION"
 
-  yarn workspace $PACKAGE version $VERSION_BUMP --deferred
-  yarn version apply
+  NEW_VERSION=$(increment_version $CURRENT_VERSION $VERSION_BUMP)
+  echo "New version for $PACKAGE is $NEW_VERSION"
+
+  # Update the version in package.json
+  jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$PACKAGE_DIR/package.json" > "$PACKAGE_DIR/package.tmp.json" && mv "$PACKAGE_DIR/package.tmp.json" "$PACKAGE_DIR/package.json"
+
+  # Commit the version change
+  git add "$PACKAGE_DIR/package.json"
+  git commit -m "chore: bump $PACKAGE to version $NEW_VERSION"
+
+  # Build and publish the package
   yarn workspace $PACKAGE build
-  npm publish --workspace $PACKAGE --access public --force
+  npm publish --workspace $PACKAGE --access public
 
-  NEW_VERSION=$(node -p "require('./$PACKAGE_DIR/package.json').version")
+  # Create a new git tag for the release
   NEW_TAG="${PACKAGE}@${NEW_VERSION}"
-
   git tag "$NEW_TAG"
   git push origin "$NEW_TAG"
 
   echo "Published $PACKAGE@$NEW_VERSION"
 }
 
+# Check for changes in each package and publish if necessary
 if [[ -n $(git diff --name-only HEAD~1 HEAD | grep "packages/pack-a") ]]; then
   publish_package "@shanmukh0504/pack-a" "packages/pack-a"
   publish_package "@shanmukh0504/pack-b" "packages/pack-b"
@@ -55,4 +106,5 @@ if [[ -n $(git diff --name-only HEAD~1 HEAD | grep "packages/pack-b") ]]; then
   publish_package "@shanmukh0504/pack-b" "packages/pack-b"
 fi
 
+# Clean up .npmrc
 rm -f ~/.npmrc
