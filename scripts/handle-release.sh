@@ -25,7 +25,6 @@ get_latest_tag() {
   PACKAGE=$1
   git fetch --tags
   LATEST_TAG=$(git tag -l "${PACKAGE}@*" | sed 's/.*@v//' | sed 's/.*@//' | sort -V | tail -n 1)
-  echo "Latest tag selected: $LATEST_TAG"
   echo "$LATEST_TAG"
 }
 
