@@ -88,4 +88,13 @@ if [[ -n $(git diff --name-only HEAD~1 HEAD | grep "packages/pack-b") ]]; then
   publish_package "@shanmukh0504/pack-b" "packages/pack-b"
 fi
 
+# Commit and push any remaining changes
+if [[ -n $(git status --porcelain) ]]; then
+  git add .
+  git -c user.email="shanmukh0504@gmail.com" \
+      -c user.name="shanmukh0504" \
+      commit -m "chore: commit release script and config changes"
+  git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main
+fi
+
 rm -f ~/.npmrc
