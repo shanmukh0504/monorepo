@@ -81,6 +81,7 @@ publish_package() {
 
 if [[ -n $(git diff --name-only HEAD~1 HEAD | grep "packages/pack-a") ]]; then
   publish_package "@shanmukh0504/pack-a" "packages/pack-a"
+  publish_package "@shanmukh0504/pack-b" "packages/pack-b"
 fi
 
 if [[ -n $(git diff --name-only HEAD~1 HEAD | grep "packages/pack-b") ]]; then
