@@ -63,13 +63,16 @@ publish_package() {
   jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$PACKAGE_DIR/package.json" > "$PACKAGE_DIR/package.tmp.json" && mv "$PACKAGE_DIR/package.tmp.json" "$PACKAGE_DIR/package.json"
 
   git add "$PACKAGE_DIR/package.json"
-  git commit -m "chore: bump $PACKAGE to version $NEW_VERSION"
+  git -c user.email="shanmukh0504@gmail.com" \
+      -c user.name="shanmukh0504" \
+      commit -m "chore: bump $PACKAGE to version $NEW_VERSION"
 
   yarn workspace $PACKAGE build
   npm publish --workspace $PACKAGE --access public
 
   NEW_TAG="${PACKAGE}@${NEW_VERSION}"
   git tag "$NEW_TAG"
+  git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main
   git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git "$NEW_TAG"
 
   echo "Published $PACKAGE@$NEW_VERSION"
