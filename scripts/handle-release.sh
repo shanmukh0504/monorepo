@@ -24,17 +24,22 @@ echo "Version bump type detected: $VERSION_BUMP"
 # Get the latest tag for a specific package
 get_latest_tag() {
   PACKAGE_NAME=$1
-  git tag -l "${PACKAGE_NAME}@*" | sort -V | tail -n 1
+  LATEST_TAG=$(git tag -l "${PACKAGE_NAME}@*" | sort -V | tail -n 1)
+  if [[ -z "$LATEST_TAG" ]]; then
+    echo "none"
+  else
+    echo "$LATEST_TAG"
+  fi
 }
 
 # Compare changes from the last tag for a specific package
 has_changes() {
   PACKAGE_PATH=$1
   LAST_TAG=$2
-  if [[ -n "$LAST_TAG" ]]; then
-    git diff --name-only "$LAST_TAG" HEAD | grep "$PACKAGE_PATH" || true
-  else
+  if [[ "$LAST_TAG" == "none" ]]; then
     echo "changed"
+  else
+    git diff --name-only "$LAST_TAG" HEAD | grep "$PACKAGE_PATH" || true
   fi
 }
 
@@ -47,19 +52,24 @@ LAST_ADMIN_TAG=$(get_latest_tag $ADMIN_PACKAGE)
 CHANGED_SHARED=$(has_changes "packages/pack-a" "$LAST_SHARED_TAG")
 CHANGED_ADMIN=$(has_changes "packages/pack-b" "$LAST_ADMIN_TAG")
 
-echo "Checking for changes in pack-a and admin packages..."
+echo "Checking for changes in pack-a and pack-b packages..."
 
 SHARED_PUBLISHED=false
 
-# Publish shared package if changed
+# Publish pack-a package if changed
 if [[ -n "$CHANGED_SHARED" ]]; then
   echo "Pack-a package has changed. Publishing pack-a."
 
-  yarn workspace $SHARED_PACKAGE version $VERSION_BUMP
+  if [[ "$LAST_SHARED_TAG" == "none" ]]; then
+    yarn workspace $SHARED_PACKAGE version 1.0.0 --no-git-tag-version
+  else
+    yarn workspace $SHARED_PACKAGE version $VERSION_BUMP --no-git-tag-version
+  fi
+
   yarn workspace $SHARED_PACKAGE build
   npm publish --workspace $SHARED_PACKAGE --access public
   
-  # Tag the new shared version
+  # Tag the new pack-a version
   NEW_SHARED_VERSION=$(node -p "require('./packages/pack-a/package.json').version")
   NEW_SHARED_TAG="${SHARED_PACKAGE}@${NEW_SHARED_VERSION}"
   git tag "$NEW_SHARED_TAG"
@@ -72,7 +82,12 @@ fi
 if [[ -n "$CHANGED_ADMIN" ]] || [[ "$SHARED_PUBLISHED" == true ]]; then
   echo "Pack-b package has changed or pack-a was published. Publishing pack-b."
 
-  yarn workspace $ADMIN_PACKAGE version $VERSION_BUMP
+  if [[ "$LAST_ADMIN_TAG" == "none" ]]; then
+    yarn workspace $ADMIN_PACKAGE version 1.0.0 --no-git-tag-version
+  else
+    yarn workspace $ADMIN_PACKAGE version $VERSION_BUMP --no-git-tag-version
+  fi
+
   yarn workspace $ADMIN_PACKAGE build
   npm publish --workspace $ADMIN_PACKAGE --access public
 
