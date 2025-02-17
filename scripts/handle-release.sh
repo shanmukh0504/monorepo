@@ -35,7 +35,8 @@ bump_version() {
     jq '.version = "1.0.0"' $PACKAGE_PATH/package.json > tmp.json && mv tmp.json $PACKAGE_PATH/package.json
   else
     echo "Latest version on npm for $PACKAGE_NAME is $CURRENT_VERSION"
-    yarn workspace $PACKAGE_NAME version --new-version $(npm --no-git-tag-version version $VERSION_BUMP) --deferred
+    NEXT_VERSION=$(npm --no-git-tag-version version $VERSION_BUMP)
+    jq --arg version "$NEXT_VERSION" '.version = $version' $PACKAGE_PATH/package.json > tmp.json && mv tmp.json $PACKAGE_PATH/package.json
   fi
 }
 
