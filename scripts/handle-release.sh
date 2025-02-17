@@ -24,8 +24,10 @@ echo "Version bump type detected: $VERSION_BUMP"
 get_latest_tag() {
   PACKAGE=$1
   git fetch --tags
-  LATEST_TAG=$(git tag -l "${PACKAGE}@*" | sort -V | head -n 1)
-  echo "${LATEST_TAG#*@v}"  # Extract version only (e.g., 2.0.0)
+  echo "All tags for $PACKAGE after sorting:"
+  git tag -l "${PACKAGE}@*" | sort -V  # Display all sorted tags
+  LATEST_TAG=$(git tag -l "${PACKAGE}@*" | sort -V | tail -n 1)
+  echo "Latest tag selected: ${LATEST_TAG#*@v}"  # Extract version only (e.g., 2.0.0)
 }
 
 increment_version() {
