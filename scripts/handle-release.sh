@@ -2,10 +2,8 @@
 
 set -e
 
-# Set up .npmrc for publishing
 echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
 
-# Determine the version bump based on the latest commit message
 LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
 
 if [[ $LAST_COMMIT_MSG == patch:* ]]; then
@@ -23,14 +21,12 @@ fi
 
 echo "Version bump type detected: $VERSION_BUMP"
 
-# Function to get the latest tag for a package
 get_latest_tag() {
   PACKAGE=$1
   git fetch --tags
   git tag -l "${PACKAGE}@*" | sort -V | tail -n 1
 }
 
-# Function to increment the version
 increment_version() {
   VERSION=$1
   VERSION_TYPE=$2
@@ -40,28 +36,15 @@ increment_version() {
   PATCH=${VERSION_PARTS[2]}
 
   case $VERSION_TYPE in
-    "major")
-      MAJOR=$((MAJOR + 1))
-      MINOR=0
-      PATCH=0
-      ;;
-    "minor")
-      MINOR=$((MINOR + 1))
-      PATCH=0
-      ;;
-    "patch")
-      PATCH=$((PATCH + 1))
-      ;;
-    *)
-      echo "Invalid version bump type: $VERSION_TYPE"
-      exit 1
-      ;;
+    "major") MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+    "minor") MINOR=$((MINOR + 1)); PATCH=0 ;;
+    "patch") PATCH=$((PATCH + 1)) ;;
+    *) echo "Invalid version bump type: $VERSION_TYPE"; exit 1 ;;
   esac
 
   echo "${MAJOR}.${MINOR}.${PATCH}"
 }
 
-# Function to publish a package
 publish_package() {
   PACKAGE=$1
   PACKAGE_DIR=$2
@@ -77,34 +60,27 @@ publish_package() {
   NEW_VERSION=$(increment_version $CURRENT_VERSION $VERSION_BUMP)
   echo "New version for $PACKAGE is $NEW_VERSION"
 
-  # Update the version in package.json
   jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$PACKAGE_DIR/package.json" > "$PACKAGE_DIR/package.tmp.json" && mv "$PACKAGE_DIR/package.tmp.json" "$PACKAGE_DIR/package.json"
 
-  # Commit the version change
   git add "$PACKAGE_DIR/package.json"
   git commit -m "chore: bump $PACKAGE to version $NEW_VERSION"
 
-  # Build and publish the package
   yarn workspace $PACKAGE build
   npm publish --workspace $PACKAGE --access public
 
-  # Create a new git tag for the release
   NEW_TAG="${PACKAGE}@${NEW_VERSION}"
   git tag "$NEW_TAG"
-  git push origin "$NEW_TAG"
+  git push https://x-access-token:${GH_PAT}@github.com/your-username/your-repo.git "$NEW_TAG"
 
   echo "Published $PACKAGE@$NEW_VERSION"
 }
 
-# Check for changes in each package and publish if necessary
 if [[ -n $(git diff --name-only HEAD~1 HEAD | grep "packages/pack-a") ]]; then
   publish_package "@shanmukh0504/pack-a" "packages/pack-a"
-  publish_package "@shanmukh0504/pack-b" "packages/pack-b"
 fi
 
 if [[ -n $(git diff --name-only HEAD~1 HEAD | grep "packages/pack-b") ]]; then
   publish_package "@shanmukh0504/pack-b" "packages/pack-b"
 fi
 
-# Clean up .npmrc
 rm -f ~/.npmrc
