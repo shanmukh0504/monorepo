@@ -3,6 +3,7 @@
   "publishConfig": {
     "access": "public"
   },
+  "versionMode": "loose",
   "scripts": {
     "echo": "yarn workspaces foreach --include \"packages/*\" run echo",
     "build": "yarn workspaces foreach -A --topological run build",

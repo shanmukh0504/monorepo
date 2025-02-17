@@ -32,9 +32,10 @@ publish_package() {
   LATEST_TAG=$(get_latest_tag $PACKAGE)
   echo "Latest tag for $PACKAGE is $LATEST_TAG"
 
-  yarn workspace $PACKAGE version $VERSION_BUMP
+  yarn workspace $PACKAGE version $VERSION_BUMP --deferred
+  yarn version apply
   yarn workspace $PACKAGE build
-  npm publish --workspace $PACKAGE --access public
+  npm publish --workspace $PACKAGE --access public --force
 
   NEW_VERSION=$(node -p "require('./$PACKAGE_DIR/package.json').version")
   NEW_TAG="${PACKAGE}@${NEW_VERSION}"
