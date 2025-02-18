@@ -43,7 +43,7 @@ increment_version() {
 }
 export -f increment_version
 
-yarn workspaces foreach --all --topological --no-private --exclude root exec bash -c '
+yarn workspaces foreach --all --topological --no-private exec bash -c '
   VERSION_BUMP="'$VERSION_BUMP'"
   PACKAGE_NAME=$(jq -r .name package.json)
   CURRENT_VERSION=$(jq -r .version package.json)
