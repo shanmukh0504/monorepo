@@ -5,4 +5,4 @@ export interface User {
 
 export const createUser = (name: string, age: number): User => ({ name, age });
 
-export const showUser = (user: User) => console.log(`${user.name} is ${user.age} now years old.`);
+    export const showUser = (user: User) => console.log(`${user.name} is ${user.age} years old.`);
