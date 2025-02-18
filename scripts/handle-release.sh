@@ -11,12 +11,16 @@ LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
 
 if [[ $LAST_COMMIT_MSG == patch:* ]]; then
   VERSION_BUMP="patch"
+  echo "patch"
 elif [[ $LAST_COMMIT_MSG == fix:* ]]; then
   VERSION_BUMP="patch"
+  echo "fix"
 elif [[ $LAST_COMMIT_MSG == feat:* ]]; then
   VERSION_BUMP="minor"
+  echo "minor"
 elif [[ $LAST_COMMIT_MSG == major:* ]]; then
   VERSION_BUMP="major"
+  echo "major"
 else
   echo "Commit message does not match patch, fix, feat, or major. Skipping publishing."
   exit 0
