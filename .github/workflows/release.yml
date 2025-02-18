@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 env:
   GITHUB_TOKEN: ${{ secrets.GH_PAT }}
@@ -66,7 +69,7 @@ jobs:
         run: ./scripts/handle-release.sh
 
   beta-release:
-    if: github.event.label.name == 'beta'
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'beta')
     runs-on: ubuntu-latest
     permissions:
       contents: write
