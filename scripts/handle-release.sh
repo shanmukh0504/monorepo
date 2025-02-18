@@ -41,6 +41,7 @@ increment_version() {
 
   echo "${MAJOR}.${MINOR}.${PATCH}"
 }
+export -f increment_version
 
 yarn workspaces foreach --all --topological --no-private exec bash -c '
   PACKAGE_NAME=$(jq -r .name package.json)

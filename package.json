@@ -1,5 +1,6 @@
 {
   "name": "@shanmukh0504/mono-repo",
+  "private": true,
   "publishConfig": {
     "access": "public"
   },
@@ -14,6 +15,5 @@
   ],
   "devDependencies": {
     "ncp": "^2.0.0"
-  },
-  "version": ""
+  }
 }
