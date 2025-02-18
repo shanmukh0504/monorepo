@@ -1,5 +1,6 @@
 {
   "name": "@shanmukh0504/mono-repo",
+  "private": true,
   "publishConfig": {
     "access": "public"
   },
