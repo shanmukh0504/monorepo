@@ -11,16 +11,12 @@ LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
 
 if [[ $LAST_COMMIT_MSG == patch:* ]]; then
   VERSION_BUMP="patch"
-  echo "patch"
 elif [[ $LAST_COMMIT_MSG == fix:* ]]; then
   VERSION_BUMP="patch"
-  echo "fix"
 elif [[ $LAST_COMMIT_MSG == feat:* ]]; then
   VERSION_BUMP="minor"
-  echo "minor"
 elif [[ $LAST_COMMIT_MSG == major:* ]]; then
   VERSION_BUMP="major"
-  echo "major"
 else
   echo "Commit message does not match patch, fix, feat, or major. Skipping publishing."
   exit 0
@@ -35,7 +31,6 @@ increment_version() {
   MAJOR=${VERSION_PARTS[0]}
   MINOR=${VERSION_PARTS[1]}
   PATCH=${VERSION_PARTS[2]}
-  echo "Current version: $VERSION ; New Version: $VERSION_TYPE"
 
   case $VERSION_TYPE in
     "major") MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
