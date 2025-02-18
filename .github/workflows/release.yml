@@ -64,3 +64,36 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: ./scripts/handle-release.sh
+
+  beta-release:
+    if: github.event.label.name == 'beta'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.9.0
+          cache: "yarn"
+
+      - name: Set Yarn Version
+        run: yarn set version 4.3.1
+
+      - name: Install Dependencies
+        run: yarn install
+
+      - name: Make handle-release.sh Executable
+        run: chmod +x scripts/handle-release.sh
+
+      - name: Run Beta Release Script
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: ./scripts/handle-release.sh beta
