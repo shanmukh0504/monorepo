@@ -35,6 +35,7 @@ increment_version() {
   MAJOR=${VERSION_PARTS[0]}
   MINOR=${VERSION_PARTS[1]}
   PATCH=${VERSION_PARTS[2]}
+  echo "Current version: $VERSION ; New Version: $VERSION_TYPE"
 
   case $VERSION_TYPE in
     "major") MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
