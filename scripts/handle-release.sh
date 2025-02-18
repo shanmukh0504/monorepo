@@ -3,7 +3,6 @@
 set -e
 
 corepack enable
-
 corepack install
 
 echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
@@ -25,13 +24,6 @@ fi
 
 echo "Version bump type detected: $VERSION_BUMP"
 
-get_latest_tag() {
-  PACKAGE=$1
-  git fetch --tags
-  LATEST_TAG=$(git tag -l "${PACKAGE}@*" | sed 's/.*@v//' | sed 's/.*@//' | sort -V | tail -n 1)
-  echo "$LATEST_TAG"
-}
-
 increment_version() {
   VERSION=$1
   VERSION_TYPE=$2
@@ -50,53 +42,31 @@ increment_version() {
   echo "${MAJOR}.${MINOR}.${PATCH}"
 }
 
-publish_package() {
-  PACKAGE=$1
-  PACKAGE_DIR=$2
+yarn workspaces foreach --topological --no-private exec bash -c '
+  PACKAGE_NAME=$(jq -r .name package.json)
+  CURRENT_VERSION=$(jq -r .version package.json)
+  NEW_VERSION=$(increment_version $CURRENT_VERSION '$VERSION_BUMP')
 
-  LATEST_TAG=$(get_latest_tag $PACKAGE)
-  if [[ -z "$LATEST_TAG" ]]; then
-    CURRENT_VERSION="0.0.0"
-  else
-    CURRENT_VERSION=${LATEST_TAG#*@}
-  fi
-  echo "Current version for $PACKAGE is $CURRENT_VERSION"
+  echo "Bumping $PACKAGE_NAME from $CURRENT_VERSION to $NEW_VERSION"
 
-  NEW_VERSION=$(increment_version $CURRENT_VERSION $VERSION_BUMP)
-  echo "New version for $PACKAGE is $NEW_VERSION"
+  jq --arg new_version "$NEW_VERSION" ".version = \$new_version" package.json > package.tmp.json && mv package.tmp.json package.json
 
-  jq --arg new_version "$NEW_VERSION" '.version = $new_version' "$PACKAGE_DIR/package.json" > "$PACKAGE_DIR/package.tmp.json" && mv "$PACKAGE_DIR/package.tmp.json" "$PACKAGE_DIR/package.json"
-
-  git add "$PACKAGE_DIR/package.json"
+  git add package.json
   git -c user.email="shanmukh0504@gmail.com" \
       -c user.name="shanmukh0504" \
-      commit -m "chore: bump $PACKAGE to version $NEW_VERSION"
+      commit -m "chore: bump $PACKAGE_NAME to version $NEW_VERSION"
 
-  yarn workspace $PACKAGE build
-  npm publish --workspace $PACKAGE --access public
+  yarn build
+  npm publish --access public
 
-  NEW_TAG="${PACKAGE}@${NEW_VERSION}"
-  git tag "$NEW_TAG"
-  git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main
-  git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git "$NEW_TAG"
+  git tag "$PACKAGE_NAME@$NEW_VERSION"
+'
 
-  echo "Published $PACKAGE@$NEW_VERSION"
-}
-
-if [[ -n $(git diff --name-only HEAD~1 HEAD | grep "packages/pack-a") ]]; then
-  publish_package "@shanmukh0504/pack-a" "packages/pack-a"
-  publish_package "@shanmukh0504/pack-b" "packages/pack-b"
-fi
-
-if [[ -n $(git diff --name-only HEAD~1 HEAD | grep "packages/pack-b") ]]; then
-  publish_package "@shanmukh0504/pack-b" "packages/pack-b"
-fi
+git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main --tags
 
 yarn config unset yarnPath
-
 jq 'del(.packageManager)' package.json > temp.json && mv temp.json package.json
 
-# Commit and push any remaining changes
 if [[ -n $(git status --porcelain) ]]; then
   git add .
   git -c user.email="shanmukh0504@gmail.com" \
