@@ -49,8 +49,15 @@ increment_version() {
 export -f increment_version
 
 yarn workspaces foreach --all --topological --no-private --exclude @shanmukh0504/monorepo exec bash -c '
+  VERSION_BUMP="'$VERSION_BUMP'"
   PACKAGE_NAME=$(jq -r .name package.json)
   CURRENT_VERSION=$(jq -r .version package.json)
+  
+  if [[ -z "$CURRENT_VERSION" || "$CURRENT_VERSION" == "null" ]]; then
+    echo "No valid version found in package.json for $PACKAGE_NAME"
+    exit 1
+  fi
+  
   NEW_VERSION=$(increment_version $CURRENT_VERSION $VERSION_BUMP)
 
   echo "Bumping $PACKAGE_NAME from $CURRENT_VERSION to $NEW_VERSION"
