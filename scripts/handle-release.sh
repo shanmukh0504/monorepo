@@ -94,6 +94,8 @@ fi
 
 yarn config unset yarnPath
 
+jq 'del(.packageManager)' package.json > temp.json && mv temp.json package.json
+
 # Commit and push any remaining changes
 if [[ -n $(git status --porcelain) ]]; then
   git add .
