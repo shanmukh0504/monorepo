@@ -48,10 +48,9 @@ increment_version() {
 export -f increment_version
 
 yarn workspaces foreach --all --topological --no-private exec bash -c '
-  VERSION_BUMP="'$VERSION_BUMP'"
   PACKAGE_NAME=$(jq -r .name package.json)
   CURRENT_VERSION=$(jq -r .version package.json)
-  NEW_VERSION=$(increment_version $CURRENT_VERSION '$VERSION_BUMP')
+  NEW_VERSION=$(increment_version $CURRENT_VERSION $VERSION_BUMP)
 
   echo "Bumping $PACKAGE_NAME from $CURRENT_VERSION to $NEW_VERSION"
 
