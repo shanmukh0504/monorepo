@@ -15,6 +15,5 @@
   "devDependencies": {
     "ncp": "^2.0.0"
   },
-  "packageManager": "yarn@4.3.1",
   "version": ""
 }
