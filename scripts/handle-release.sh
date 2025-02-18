@@ -2,6 +2,10 @@
 
 set -e
 
+corepack enable
+
+corepack install
+
 echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
 
 LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
