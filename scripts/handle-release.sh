@@ -87,23 +87,22 @@ yarn workspaces foreach --all --topological --no-private exec bash -c '
 
   jq --arg new_version "$NEW_VERSION" ".version = \$new_version" package.json > package.tmp.json && mv package.tmp.json package.json
 
-  git add package.json
-  git -c user.email="shanmukh0504@gmail.com" \
-      -c user.name="shanmukh0504" \
-      commit -m "chore: bump $PACKAGE_NAME to version $NEW_VERSION"
-
-  yarn build
-
   if [[ $VERSION_BUMP == "prerelease" ]]; then
     npm publish --tag beta --access public
+    git tag "$PACKAGE_NAME@$NEW_VERSION"
+    git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git "$PACKAGE_NAME@$NEW_VERSION"
   else
+    git add package.json
+    git -c user.email="shanmukh0504@gmail.com" \
+        -c user.name="shanmukh0504" \
+        commit -m "chore: bump $PACKAGE_NAME to version $NEW_VERSION"
+    
+    yarn build
     npm publish --access public
+    git tag "$PACKAGE_NAME@$NEW_VERSION"
+    git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main --tags
   fi
-
-  git tag "$PACKAGE_NAME@$NEW_VERSION"
 '
-
-git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main --tags
 
 yarn config unset yarnPath
 jq 'del(.packageManager)' package.json > temp.json && mv temp.json package.json
