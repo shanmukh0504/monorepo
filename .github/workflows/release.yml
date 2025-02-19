@@ -66,6 +66,7 @@ jobs:
         run: ./scripts/handle-release.sh
 
   beta-release:
+    needs: [build]
     if: github.event.label.name == 'beta'
     runs-on: ubuntu-latest
     permissions:
