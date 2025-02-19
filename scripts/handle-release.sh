@@ -63,7 +63,19 @@ export -f increment_version
 yarn workspaces foreach --all --topological --no-private exec bash -c '
   VERSION_BUMP="'$VERSION_BUMP'"
   PACKAGE_NAME=$(jq -r .name package.json)
+  if [[ ! -f "package.json" ]]; then
+    echo "Error: package.json not found in $(pwd)"
+    exit 1
+  fi
+
   CURRENT_VERSION=$(jq -r .version package.json)
+
+  if [[ -z "$CURRENT_VERSION" || "$CURRENT_VERSION" == "null" ]]; then
+    echo "Error: No valid version found in package.json for $(jq -r .name package.json) in $(pwd)"
+    cat package.json  # Debug: Show the content
+    exit 1
+  fi
+
 
   if [[ -z "$CURRENT_VERSION" || "$CURRENT_VERSION" == "null" ]]; then
     echo "No valid version found in package.json for $PACKAGE_NAME"

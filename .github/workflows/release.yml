@@ -69,6 +69,7 @@ jobs:
         run: ./scripts/handle-release.sh
 
   beta-release:
+    needs: [build]
     if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'beta')
     runs-on: ubuntu-latest
     permissions:
