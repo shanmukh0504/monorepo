@@ -1,0 +1,19 @@
+{
+  "name": "@shanmukh0504/mono-repo",
+  "private": true,
+  "publishConfig": {
+    "access": "public"
+  },
+  "versionMode": "loose",
+  "scripts": {
+    "echo": "yarn workspaces foreach --include \"packages/*\" run echo",
+    "build": "yarn workspaces foreach -A --topological run build",
+    "release": "semantic-release"
+  },
+  "workspaces": [
+    "packages/*"
+  ],
+  "devDependencies": {
+    "ncp": "^2.0.0"
+  }
+}

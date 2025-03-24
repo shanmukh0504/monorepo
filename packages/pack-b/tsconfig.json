@@ -1,0 +1,9 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "pack-a": ["../pack-a/dist"],
+      "pack-c": ["../pack-c/dist"]
+    }
+  }
+}
