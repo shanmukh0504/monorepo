@@ -126,7 +126,7 @@ yarn workspaces foreach --all --topological --no-private exec bash -c '
       yarn build
       npm publish --access public
       git tag "$PACKAGE_NAME@$NEW_VERSION"
-      git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepoo.git HEAD:main --tags
+      git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main --tags
     else
       echo "Skipping commit since this is a pull request."
     fi
@@ -141,7 +141,7 @@ if [[ "$IS_PR" != "true" && -n $(git status --porcelain) ]]; then
   git -c user.email="$COMMIT_EMAIL" \
       -c user.name="$COMMIT_NAME" \
       commit -m "chore: commit release script and config changes"
-  git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepoo.git HEAD:main
+  git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main
 fi
 
 rm -f ~/.npmrc
