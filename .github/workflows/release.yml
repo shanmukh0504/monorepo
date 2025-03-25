@@ -45,6 +45,7 @@ jobs:
 
           echo "Commenter's permissions: $COMMENTER_PERMISSIONS"
           
+          # Debug: Output permissions to check
           if [[ "$COMMENTER_PERMISSIONS" == *"admin"* || "$COMMENTER_PERMISSIONS" == *"maintain"* ]]; then
             echo "is_admin_or_maintain=true" >> $GITHUB_ENV
           else
