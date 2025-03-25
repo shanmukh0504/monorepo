@@ -121,7 +121,7 @@ yarn workspaces foreach --all --topological --no-private exec bash -c '
       git add package.json
       git -c user.email="'"$COMMIT_EMAIL"'" \
           -c user.name="'"$COMMIT_NAME"'" \
-          commit -m "bump $PACKAGE_NAME to version $NEW_VERSION"
+          commit -m "V$NEW_VERSION"
       
       yarn build
       npm publish --access public
