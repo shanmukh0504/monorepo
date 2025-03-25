@@ -20,6 +20,7 @@ jobs:
     permissions:
       contents: write
       packages: write
+      issues: read
 
     steps:
       - name: Checkout Repository
@@ -27,6 +28,29 @@ jobs:
         with:
           fetch-depth: 0
           token: ${{ secrets.GH_PAT }}
+
+      - name: Get Commenter's Username
+        id: get-commenter
+        run: echo "COMMENTER=${{ github.event.comment.user.login }}" >> $GITHUB_ENV
+
+      - name: Fetch Collaborators and Permissions
+        id: get-collaborators
+        run: |
+          collaborators=$(curl -s -H "Authorization: token ${{ secrets.GH_PAT }}" \
+            "https://api.github.com/repos/${{ github.repository }}/collaborators")
+          
+          # Extract the relevant permissions for each collaborator (admin or maintain)
+          COMMENTER_PERMISSIONS=$(echo "$collaborators" | jq -r --arg commenter "${{ env.COMMENTER }}" \
+            'map(select(.login == $commenter)) | .[0].permissions')
+
+          echo "Commenter's permissions: $COMMENTER_PERMISSIONS"
+          
+          if [[ "$COMMENTER_PERMISSIONS" == *"admin"* || "$COMMENTER_PERMISSIONS" == *"maintain"* ]]; then
+            echo "is_admin_or_maintain=true" >> $GITHUB_ENV
+          else
+            echo "is_admin_or_maintain=false" >> $GITHUB_ENV
+            exit 1  # Exit if the commenter doesn't have admin or maintain permissions
+          fi
 
       - name: Setup Node.js
         uses: actions/setup-node@v3
@@ -48,6 +72,7 @@ jobs:
         env:
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: ./scripts/handle-release.sh beta
+        if: env.is_admin_or_maintain == 'true'
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (contains(github.event.head_commit.message, 'patch') || contains(github.event.head_commit.message, 'chore') || contains(github.event.head_commit.message, 'fix') || contains(github.event.head_commit.message, 'feat'))
