@@ -50,7 +50,7 @@ jobs:
         run: ./scripts/handle-release.sh beta
 
   release:
-    if: github.event.pull_request.merged == true && (contains(github.event.head_commit.message, 'patch') || contains(github.event.head_commit.message, 'chore') || contains(github.event.head_commit.message, 'fix') || contains(github.event.head_commit.message, 'feat'))
+    if: github.event_name == 'pull_request' && github.event.action == 'closed' && github.event.pull_request.merged == true && (contains(github.event.head_commit.message, 'patch') || contains(github.event.head_commit.message, 'chore') || contains(github.event.head_commit.message, 'fix') || contains(github.event.head_commit.message, 'feat'))
     runs-on: ubuntu-latest
     permissions:
       contents: write
