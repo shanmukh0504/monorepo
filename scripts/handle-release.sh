@@ -121,7 +121,7 @@ yarn workspaces foreach --all --topological --no-private exec bash -c '
       git add package.json
       git -c user.email="'"$COMMIT_EMAIL"'" \
           -c user.name="'"$COMMIT_NAME"'" \
-          commit -m "chore: bump $PACKAGE_NAME to version $NEW_VERSION"
+          commit -m "bump $PACKAGE_NAME to version $NEW_VERSION"
       
       yarn build
       npm publish --access public
@@ -140,7 +140,7 @@ if [[ "$IS_PR" != "true" && -n $(git status --porcelain) ]]; then
   git add .
   git -c user.email="$COMMIT_EMAIL" \
       -c user.name="$COMMIT_NAME" \
-      commit -m "chore: commit release script and config changes"
+      commit -m "commit release script and config changes"
   git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main
 fi
 
