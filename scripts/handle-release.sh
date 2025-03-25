@@ -12,7 +12,7 @@ echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
 git fetch --tags
 
 IS_PR=false
-if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+if [[ "$GITHUB_EVENT_NAME" == "issue_comment" ]]; then
   IS_PR=true
 fi
 
