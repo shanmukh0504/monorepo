@@ -39,18 +39,16 @@ jobs:
           collaborators=$(curl -s -H "Authorization: token ${{ secrets.GH_PAT }}" \
             "https://api.github.com/repos/${{ github.repository }}/collaborators")
           
-          # Extract the relevant permissions for each collaborator (admin or maintain)
           COMMENTER_PERMISSIONS=$(echo "$collaborators" | jq -r --arg commenter "${{ env.COMMENTER }}" \
             'map(select(.login == $commenter)) | .[0].permissions')
 
           echo "Commenter's permissions: $COMMENTER_PERMISSIONS"
           
-          # Debug: Output permissions to check
-          if [[ "$COMMENTER_PERMISSIONS" == *"admin"* || "$COMMENTER_PERMISSIONS" == *"maintain"* ]]; then
+          if [[ "$COMMENTER_PERMISSIONS" == *"admin\": true"* || "$COMMENTER_PERMISSIONS" == *"maintain\": true"* ]]; then
             echo "is_admin_or_maintain=true" >> $GITHUB_ENV
           else
             echo "is_admin_or_maintain=false" >> $GITHUB_ENV
-            exit 1  # Exit if the commenter doesn't have admin or maintain permissions
+            exit 1  # Prevent release if not admin or maintainer
           fi
 
       - name: Setup Node.js
