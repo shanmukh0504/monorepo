@@ -78,8 +78,8 @@ increment_version() {
 
 export -f increment_version
 
-# Get the list of changed packages (any file under packages/ and its subfolders)
-CHANGED_PACKAGES=$(git diff --name-only origin/main...HEAD | grep -E 'packages/[^/]+/.*' | sed 's/\/.*//')
+# Ensure changes are being captured in any file within the packages/
+CHANGED_PACKAGES=$(git diff --name-only origin/main HEAD | grep -E 'packages/.+' | sed 's/\/.*//')
 
 if [[ -z "$CHANGED_PACKAGES" ]]; then
   echo "No package changes detected."
