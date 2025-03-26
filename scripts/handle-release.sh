@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+set -x
 
 # Get committer's details
 COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
