@@ -78,8 +78,13 @@ increment_version() {
 
 export -f increment_version
 
-# Get the list of changed packages compared to the `main` branch
-CHANGED_PACKAGES=$(git diff --name-only origin/main...HEAD | grep 'packages/.*package.json' | sed 's/\/package.json//')
+# Get the list of changed packages (any file under packages/ and its subfolders)
+CHANGED_PACKAGES=$(git diff --name-only origin/main...HEAD | grep -E 'packages/[^/]+/.*' | sed 's/\/.*//')
+
+if [[ -z "$CHANGED_PACKAGES" ]]; then
+  echo "No package changes detected."
+  exit 0
+fi
 
 # Get the dependency graph using Yarn workspaces
 DEPENDENCY_GRAPH=$(yarn workspaces info)
