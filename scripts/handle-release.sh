@@ -2,6 +2,7 @@
 
 set -e
 
+# Get committer's details
 COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
 COMMIT_NAME=$(git log -1 --pretty=format:'%an')
 
@@ -16,6 +17,7 @@ if [[ "$GITHUB_EVENT_NAME" == "issue_comment" ]]; then
   IS_PR=true
 fi
 
+# Determine the version bump type based on commit message or flag
 if [[ $1 == "beta" ]]; then
   VERSION_BUMP="prerelease"
   PRERELEASE_SUFFIX="beta"
@@ -75,27 +77,69 @@ increment_version() {
 
 export -f increment_version
 
-yarn workspaces foreach --all --topological --no-private exec bash -c '
-  VERSION_BUMP="'$VERSION_BUMP'"
-  PACKAGE_NAME=$(jq -r .name package.json)
+# Get the list of changed packages compared to the `main` branch
+CHANGED_PACKAGES=$(git diff --name-only origin/main...HEAD | grep 'packages/.*package.json' | sed 's/\/package.json//')
 
-  if [[ ! -f "package.json" ]]; then
-    echo "Error: package.json not found in $(pwd)"
-    exit 1
+# Get the dependency graph using Yarn workspaces
+DEPENDENCY_GRAPH=$(yarn workspaces info)
+
+# Function to get dependencies of a package
+get_dependencies() {
+  PACKAGE=$1
+  echo "$DEPENDENCY_GRAPH" | jq -r --arg package "$PACKAGE" '.[$package].dependencies // []'
+}
+
+# Initialize arrays for sorted packages and visited packages
+sorted_packages=()
+visited=()
+
+# Toposort function to ensure dependencies are published first
+toposort() {
+  local package=$1
+  # If already visited, return
+  if [[ " ${visited[@]} " =~ " ${package} " ]]; then
+    return
   fi
 
+  # Mark the current package as visited
+  visited+=("$package")
+
+  # Get the dependencies of the current package
+  dependencies=$(get_dependencies "$package")
+
+  # Recurse on dependencies (publish dependencies first)
+  for dep in $dependencies; do
+    toposort "$dep"
+  done
+
+  # Add the current package to the sorted list
+  sorted_packages+=("$package")
+}
+
+# Perform topological sorting for each changed package
+for pkg in $CHANGED_PACKAGES; do
+  toposort "$pkg"
+done
+
+echo "Sorted packages to publish: ${sorted_packages[@]}"
+
+# Publish the packages in sorted order
+for PACKAGE in "${sorted_packages[@]}"; do
+  PACKAGE_NAME=$PACKAGE
+  echo "Processing package: $PACKAGE_NAME"
+
+  # Determine the latest stable version and increment it based on the bump type
   LATEST_STABLE_VERSION=$(npm view $PACKAGE_NAME version)
 
   if [[ -z "$LATEST_STABLE_VERSION" ]]; then
-    echo "No previous stable tags found for $PACKAGE_NAME, using package.json version"
+    echo "No previous stable version found for $PACKAGE_NAME, using package.json version."
     LATEST_STABLE_VERSION=$(jq -r .version package.json)
   fi
 
   echo "Latest stable version for $PACKAGE_NAME: $LATEST_STABLE_VERSION"
 
   if [[ "$VERSION_BUMP" == "prerelease" ]]; then
-
-    LATEST_BETA_VERSION=$(npm view $PACKAGE_NAME versions --json | jq -r '"'"'[.[] | select(contains("-beta"))] | max // empty'"'"')
+    LATEST_BETA_VERSION=$(npm view $PACKAGE_NAME versions --json | jq -r '[.[] | select(contains("-beta"))] | max // empty')
 
     if [[ -n "$LATEST_BETA_VERSION" ]]; then
       BETA_NUMBER=$(echo "$LATEST_BETA_VERSION" | sed -E "s/.*-beta\.([0-9]+)/\1/")
@@ -113,7 +157,7 @@ yarn workspaces foreach --all --topological --no-private exec bash -c '
 
   jq --arg new_version "$NEW_VERSION" ".version = \$new_version" package.json > package.tmp.json && mv package.tmp.json package.json
 
-  if [[ $VERSION_BUMP == "prerelease" ]]; then
+  if [[ "$VERSION_BUMP" == "prerelease" ]]; then
     yarn build
     npm publish --tag beta --access public
   else
@@ -131,11 +175,13 @@ yarn workspaces foreach --all --topological --no-private exec bash -c '
       echo "Skipping commit since this is a pull request."
     fi
   fi
-'
+done
 
+# Clean up after publishing
 yarn config unset yarnPath
 jq 'del(.packageManager)' package.json > temp.json && mv temp.json package.json
 
+# Commit any changes (if not in a PR)
 if [[ "$IS_PR" != "true" && -n $(git status --porcelain) ]]; then
   git add .
   git -c user.email="$COMMIT_EMAIL" \
@@ -144,4 +190,5 @@ if [[ "$IS_PR" != "true" && -n $(git status --porcelain) ]]; then
   git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main
 fi
 
+# Remove npmrc file after publishing
 rm -f ~/.npmrc
