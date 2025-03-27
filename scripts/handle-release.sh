@@ -38,7 +38,6 @@ fi
 
 echo "Version bump type detected: $VERSION_BUMP"
 
-# Function to increment version based on the version type
 increment_version() {
   VERSION=$1
   VERSION_TYPE=$2
@@ -76,12 +75,12 @@ increment_version() {
 
 export -f increment_version
 
-# Identify affected packages
-affected_packages=$(yarn workspaces foreach --topological --all --no-private --json exec 'echo $PWD' | jq -r '.location' | sort)
+# Capture changed packages
+CHANGED_PACKAGES=$(git diff --name-only main | grep "packages/" | grep -v "package.json" | awk -F/ '{print $2}' | sort | uniq)
 
-echo "Affected packages: $affected_packages"
+echo "Changed packages: $CHANGED_PACKAGES"
 
-# Use Yarn publish to publish affected packages only, respecting the dependency cycle
+# Process affected packages in topological order
 yarn workspaces foreach --topological --all --no-private exec bash -c '
   VERSION_BUMP="'$VERSION_BUMP'"
   PACKAGE_NAME=$(jq -r .name package.json)
@@ -89,6 +88,12 @@ yarn workspaces foreach --topological --all --no-private exec bash -c '
   if [[ ! -f "package.json" ]]; then
     echo "Error: package.json not found in $(pwd)"
     exit 1
+  fi
+
+  # Check if the package is changed
+  if [[ ! " '$CHANGED_PACKAGES' " =~ " $PACKAGE_NAME " ]]; then
+    echo "Skipping $PACKAGE_NAME as it is not changed."
+    exit 0
   fi
 
   LATEST_STABLE_VERSION=$(npm view $PACKAGE_NAME version)
