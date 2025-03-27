@@ -1,6 +1,6 @@
 # 🚀 Monorepo Automated Release Workflow
 
-This repository uses a custom shell script and GitHub Actions workflow to automate **version bumping**, **build**, and **publishing** of packages in a Yarn monorepo. It supports both **stable** and **beta** releases triggered via commits or PR comments.
+This repository uses a custom shell script and GitHub Actions workflow to automate **version bumping**, **build**, and **publishing** of packages in a Yarn monorepo. It supports both **stable** and **beta** releases triggered via commits and PR comments.
 
 ---
 
@@ -21,7 +21,7 @@ This repository uses a custom shell script and GitHub Actions workflow to automa
 ### 🔁 On `push` to `main`:
 - Parses the latest commit message to determine version bump.
 - Bumps package versions.
-- Builds and publishes each public package to NPM.
+- Builds and publishes each public package to NPM satisfying the dependency cycle.
 - Commits version changes and pushes Git tags.
 
 ### 🗣️ On PR comment `/release-beta`:
@@ -68,36 +68,8 @@ scripts/
 
 ---
 
-## 🚀 Triggering a Beta Release
-
-On a PR, comment:
-
-```
-/release-beta
-```
-
-Only users with `admin` or `maintain` permissions can trigger this.
-
----
-
-## 📦 Tech Stack
-
-- Node.js 20.x
-- Yarn 4 (via Corepack)
-- GitHub Actions
-- Bash scripting
-- jq + npm CLI
-
----
-
 ## ✅ Notes
 
 - The release script skips publishing for commits without valid prefixes.
 - Ensures only stable releases are tagged and pushed on `main`.
 - Auto-unsets `yarnPath` and removes `packageManager` field after install to avoid lock-in.
-
----
-
-## 🤝 Contributing
-
-Feel free to open issues or PRs to enhance the workflow logic or support additional bump types.
