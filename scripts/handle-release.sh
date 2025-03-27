@@ -1,6 +1,7 @@
 #!/bin/bash
 
 set -e
+set -x
 
 COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
 COMMIT_NAME=$(git log -1 --pretty=format:'%an')
@@ -75,12 +76,24 @@ increment_version() {
 
 export -f increment_version
 
-# Capture changed packages
-CHANGED_PACKAGES=$(git diff --name-only main | grep "packages/" | grep -v "package.json" | awk -F/ '{print $2}' | sort | uniq)
+# Logging each command involved in capturing changed packages
+echo "Step 1: Running git diff --name-only main"
+git diff --name-only main
 
+echo "Step 2: Filtering changes in 'packages/' directory"
+git diff --name-only main | grep "packages/"
+
+echo "Step 3: Excluding 'package.json' files"
+git diff --name-only main | grep "packages/" | grep -v "package.json"
+
+echo "Step 4: Extracting package names using awk"
+git diff --name-only main | grep "packages/" | grep -v "package.json" | awk -F/ '{print $2}'
+
+echo "Step 5: Sorting and making unique package names"
+CHANGED_PACKAGES=$(git diff --name-only main | grep "packages/" | grep -v "package.json" | awk -F/ '{print $2}' | sort | uniq)
 echo "Changed packages: $CHANGED_PACKAGES"
 
-# Process affected packages in topological order
+# Now continue with the rest of the script as usual
 yarn workspaces foreach --topological --all --no-private exec bash -c '
   VERSION_BUMP="'$VERSION_BUMP'"
   PACKAGE_NAME=$(jq -r .name package.json)
