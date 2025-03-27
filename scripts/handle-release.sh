@@ -1,7 +1,6 @@
 #!/bin/bash
 
 set -e
-set -x
 
 COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
 COMMIT_NAME=$(git log -1 --pretty=format:'%an')
@@ -76,50 +75,62 @@ increment_version() {
 
 export -f increment_version
 
-# Logging each command involved in capturing changed packages
-echo "Step 1: Running git diff --name-only main"
-git diff --name-only main
+# Get changes against the main branch
+AFFECTED_FILES=$(git diff --name-only origin/main)
+AFFECTED_PACKAGES=()
 
-echo "Step 2: Filtering changes in 'packages/' directory"
-git diff --name-only main | grep "packages/"
-
-echo "Step 3: Excluding 'package.json' files"
-git diff --name-only main | grep "packages/" | grep -v "package.json"
-
-echo "Step 4: Extracting package names using awk"
-git diff --name-only main | grep "packages/" | grep -v "package.json" | awk -F/ '{print $2}'
-
-echo "Step 5: Sorting and making unique package names"
-CHANGED_PACKAGES=$(git diff --name-only main | grep "packages/" | grep -v "package.json" | awk -F/ '{print $2}' | sort | uniq)
-echo "Changed packages: $CHANGED_PACKAGES"
-
-# Now continue with the rest of the script as usual
-yarn workspaces foreach --topological --all --no-private exec bash -c '
-  VERSION_BUMP="'$VERSION_BUMP'"
-  PACKAGE_NAME=$(jq -r .name package.json)
-
-  if [[ ! -f "package.json" ]]; then
-    echo "Error: package.json not found in $(pwd)"
-    exit 1
+# Identify affected packages based on changed files
+for FILE in $AFFECTED_FILES; do
+  if [[ "$FILE" =~ ^packages/(.*)/package.json ]]; then
+    PACKAGE_NAME="${BASH_REMATCH[1]}"
+    AFFECTED_PACKAGES+=("$PACKAGE_NAME")
   fi
+done
 
-  # Check if the package is changed
-  if [[ ! " '$CHANGED_PACKAGES' " =~ " $PACKAGE_NAME " ]]; then
-    echo "Skipping $PACKAGE_NAME as it is not changed."
-    exit 0
+# Build a dependency graph
+declare -A DEPENDENCY_GRAPH
+for PACKAGE in "${AFFECTED_PACKAGES[@]}"; do
+  DEPENDENCIES=$(jq -r '.dependencies | keys | .[]' "packages/$PACKAGE/package.json")
+  for DEP in $DEPENDENCIES; do
+    DEPENDENCY_GRAPH["$DEP"]="$PACKAGE"
+  done
+done
+
+# Topologically sort the affected packages to determine the publishing order
+PUBLISH_ORDER=()
+VISITED=()
+
+function topological_sort() {
+  local NODE=$1
+  if [[ -z "${VISITED[$NODE]}" ]]; then
+    VISITED[$NODE]=1
+    DEPENDENCIES=$(jq -r '.dependencies | keys | .[]' "packages/$NODE/package.json")
+    for DEP in $DEPENDENCIES; do
+      topological_sort "$DEP"
+    done
+    PUBLISH_ORDER+=("$NODE")
   fi
+}
 
+# Perform DFS for each affected package
+for PACKAGE in "${AFFECTED_PACKAGES[@]}"; do
+  topological_sort "$PACKAGE"
+done
+
+# Loop through packages to bump versions and publish them
+for PACKAGE in "${PUBLISH_ORDER[@]}"; do
+  VERSION_BUMP="${VERSION_BUMP}"
+  PACKAGE_NAME=$PACKAGE
   LATEST_STABLE_VERSION=$(npm view $PACKAGE_NAME version)
 
   if [[ -z "$LATEST_STABLE_VERSION" ]]; then
     echo "No previous stable tags found for $PACKAGE_NAME, using package.json version"
-    LATEST_STABLE_VERSION=$(jq -r .version package.json)
+    LATEST_STABLE_VERSION=$(jq -r .version "packages/$PACKAGE_NAME/package.json")
   fi
 
   echo "Latest stable version for $PACKAGE_NAME: $LATEST_STABLE_VERSION"
 
   if [[ "$VERSION_BUMP" == "prerelease" ]]; then
-
     LATEST_BETA_VERSION=$(npm view $PACKAGE_NAME versions --json | jq -r '"'"'[.[] | select(contains("-beta"))] | max // empty'"'"')
 
     if [[ -n "$LATEST_BETA_VERSION" ]]; then
@@ -136,27 +147,27 @@ yarn workspaces foreach --topological --all --no-private exec bash -c '
 
   echo "Bumping $PACKAGE_NAME from $LATEST_STABLE_VERSION to $NEW_VERSION"
 
-  jq --arg new_version "$NEW_VERSION" ".version = \$new_version" package.json > package.tmp.json && mv package.tmp.json package.json
+  jq --arg new_version "$NEW_VERSION" ".version = \$new_version" "packages/$PACKAGE_NAME/package.json" > package.tmp.json && mv package.tmp.json "packages/$PACKAGE_NAME/package.json"
 
   if [[ $VERSION_BUMP == "prerelease" ]]; then
-    yarn build
-    npm publish --tag beta --access public
+    yarn build --cwd "packages/$PACKAGE_NAME"
+    npm publish --tag beta --access public --cwd "packages/$PACKAGE_NAME"
   else
     if [[ "$IS_PR" != "true" ]]; then
-      git add package.json
+      git add "packages/$PACKAGE_NAME/package.json"
       git -c user.email="'"$COMMIT_EMAIL"'" \
           -c user.name="'"$COMMIT_NAME"'" \
           commit -m "V$NEW_VERSION"
       
-      yarn build
-      npm publish --access public
+      yarn build --cwd "packages/$PACKAGE_NAME"
+      npm publish --access public --cwd "packages/$PACKAGE_NAME"
       git tag "$PACKAGE_NAME@$NEW_VERSION"
       git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main --tags
     else
       echo "Skipping commit since this is a pull request."
     fi
   fi
-'
+done
 
 yarn config unset yarnPath
 jq 'del(.packageManager)' package.json > temp.json && mv temp.json package.json
