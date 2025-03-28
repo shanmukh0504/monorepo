@@ -4,8 +4,6 @@ set -e
 COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
 COMMIT_NAME=$(git log -1 --pretty=format:'%an')
 
-echo "Using committer details - Name: $COMMIT_NAME, Email: $COMMIT_EMAIL"
-
 echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
 
 git fetch --tags
@@ -21,10 +19,7 @@ if [[ $1 == "beta" ]]; then
   PRERELEASE_SUFFIX="beta"
 else
   LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
-
-  if [[ $LAST_COMMIT_MSG == patch:* ]]; then
-    VERSION_BUMP="patch"
-  elif [[ $LAST_COMMIT_MSG == chore:* ]]; then
+  if [[ $LAST_COMMIT_MSG == patch:* || $LAST_COMMIT_MSG == chore:* ]]; then
     VERSION_BUMP="patch"
   elif [[ $LAST_COMMIT_MSG == fix:* ]]; then
     VERSION_BUMP="minor"
@@ -38,40 +33,42 @@ fi
 
 echo "Version bump type detected: $VERSION_BUMP"
 
+get_latest_package_tag() {
+  local package_name=$1
+  git tag --list "$package_name@*" | sort -Vr | head -n 1
+}
+
+CHANGED=()
+
 if [[ "$IS_PR" == "true" && -n "$PR_BRANCH" ]]; then
-  echo "🧠 PR-based release from comment. Fetching PR branch: $PR_BRANCH"
   git fetch origin "$PR_BRANCH:$PR_BRANCH"
   CHANGED=$(git diff --name-only origin/main..."$PR_BRANCH" | grep '^packages/' | cut -d/ -f2 | sort -u)
-
-elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-  echo "🚀 Push-based release. Getting changes from last commit."
-  CHANGED=$(git diff --name-only HEAD~1 | grep '^packages/' | cut -d/ -f2 | sort -u)
-
 else
-  echo "🕵️ Unknown context. Falling back to working tree diff."
-  CHANGED=$(git diff --name-only origin/main HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
+  for PKG in $(ls packages); do
+    FULL_NAME="@shanmukh0504/$PKG"
+    TAG=$(get_latest_package_tag "$FULL_NAME")
+
+    if [[ -n "$TAG" ]]; then
+      DIFF=$(git diff --name-only "$TAG"...HEAD -- "packages/$PKG")
+      if [[ -n "$DIFF" ]]; then
+        CHANGED+=("$PKG")
+      fi
+    else
+      CHANGED+=("$PKG")
+    fi
+  done
 fi
 
 echo "Changed packages:"
-echo "$CHANGED"
+printf '%s\n' "${CHANGED[@]}"
 
-if [[ -z "$CHANGED" ]]; then
-  echo "❌ No packages changed. Skipping publish."
-  exit 0
-fi
-
-echo "Changed packages:"
-echo "$CHANGED"
-
-if [[ -z "$CHANGED" ]]; then
+if [[ ${#CHANGED[@]} -eq 0 ]]; then
   echo "No packages changed. Skipping publish."
   exit 0
 fi
 
-# Get topological order
 TOPO_ORDER=$(yarn workspaces foreach --all --topological --no-private exec node -p "require('./package.json').name" 2>/dev/null | grep '^@' | sed 's/\[//;s/\]://')
 
-# Build reverse dependency map
 declare -A REVERSE_DEP_MAP
 for PKG in $TOPO_ORDER; do
   PKG_DIR=$(echo "$PKG" | cut -d/ -f2)
@@ -81,10 +78,9 @@ for PKG in $TOPO_ORDER; do
   done
 done
 
-# Traverse reverse dependencies from changed packages
 declare -A SHOULD_PUBLISH
 queue=()
-for CHG in $CHANGED; do
+for CHG in "${CHANGED[@]}"; do
   CHG_PKG="@shanmukh0504/$CHG"
   SHOULD_PUBLISH[$CHG_PKG]=1
   queue+=("$CHG_PKG")
@@ -101,7 +97,6 @@ while [ ${#queue[@]} -gt 0 ]; do
   done
 done
 
-# Filter final publish order
 PUBLISH_ORDER=()
 for PKG in $TOPO_ORDER; do
   if [[ ${SHOULD_PUBLISH[$PKG]} == 1 ]]; then
@@ -145,7 +140,6 @@ increment_version() {
 }
 export -f increment_version
 
-# ✅ Main publishing loop
 for PKG in "${PUBLISH_ORDER[@]}"; do
   echo ""
   echo "📦 Processing $PKG..."
@@ -169,7 +163,7 @@ for PKG in "${PUBLISH_ORDER[@]}"; do
     NEW_VERSION=$(increment_version "$LATEST_STABLE_VERSION" "$VERSION_BUMP")
   fi
 
-  echo "🔧 Bumping $PACKAGE_NAME to $NEW_VERSION"
+  echo "Bumping $PACKAGE_NAME to $NEW_VERSION"
   jq --arg new_version "$NEW_VERSION" '.version = $new_version' package.json > package.tmp.json && mv package.tmp.json package.json
 
   if [[ "$VERSION_BUMP" == "prerelease" ]]; then
@@ -193,7 +187,6 @@ for PKG in "${PUBLISH_ORDER[@]}"; do
   cd - > /dev/null
 done
 
-# Cleanup
 yarn config unset yarnPath
 jq 'del(.packageManager)' package.json > temp.json && mv temp.json package.json
 
