@@ -1,6 +1,4 @@
-
 #!/bin/bash
-
 set -e
 
 COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
@@ -11,6 +9,7 @@ echo "Using committer details - Name: $COMMIT_NAME, Email: $COMMIT_EMAIL"
 echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
 
 git fetch --tags
+git fetch origin main
 
 IS_PR=false
 if [[ "$GITHUB_EVENT_NAME" == "issue_comment" ]]; then
@@ -38,6 +37,51 @@ else
 fi
 
 echo "Version bump type detected: $VERSION_BUMP"
+
+# Get changed packages
+CHANGED=$(git diff --name-only origin/main...HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
+echo "Changed packages: $CHANGED"
+
+# Get topological order
+TOPO_ORDER=$(yarn workspaces foreach --all --topological --no-private exec node -p "require('./package.json').name" 2>/dev/null | grep '^@' | sed 's/\[//;s/\]://')
+
+# Build reverse dependency map
+declare -A REVERSE_DEP_MAP
+for PKG in $TOPO_ORDER; do
+  PKG_DIR=$(echo "$PKG" | cut -d/ -f2)
+  DEPS=$(jq -r '.dependencies // {} | keys[]' "packages/$PKG_DIR/package.json" 2>/dev/null | grep '^@shanmukh0504/' || true)
+  for DEP in $DEPS; do
+    REVERSE_DEP_MAP[$DEP]="${REVERSE_DEP_MAP[$DEP]} $PKG"
+  done
+done
+
+# Traverse reverse dependencies from changed packages
+declare -A SHOULD_PUBLISH
+queue=()
+for CHG in $CHANGED; do
+  CHG_PKG="@shanmukh0504/$CHG"
+  SHOULD_PUBLISH[$CHG_PKG]=1
+  queue+=("$CHG_PKG")
+done
+
+while [ ${#queue[@]} -gt 0 ]; do
+  CURRENT=${queue[0]}
+  queue=("${queue[@]:1}")
+  for DEP in ${REVERSE_DEP_MAP[$CURRENT]}; do
+    if [[ -z "${SHOULD_PUBLISH[$DEP]}" ]]; then
+      SHOULD_PUBLISH[$DEP]=1
+      queue+=("$DEP")
+    fi
+  done
+done
+
+# Filter final publish order
+PUBLISH_ORDER=()
+for PKG in $TOPO_ORDER; do
+  if [[ ${SHOULD_PUBLISH[$PKG]} == 1 ]]; then
+    PUBLISH_ORDER+=("$PKG")
+  fi
+done
 
 increment_version() {
   VERSION=$1
@@ -73,67 +117,57 @@ increment_version() {
     echo "${MAJOR}.${MINOR}.${PATCH}"
   fi
 }
-
 export -f increment_version
 
-yarn workspaces foreach --all --topological --no-private exec bash -c '
-  VERSION_BUMP="'$VERSION_BUMP'"
+# ✅ Main publishing loop
+for PKG in "${PUBLISH_ORDER[@]}"; do
+  echo ""
+  echo "📦 Processing $PKG..."
+  PKG_DIR=$(echo "$PKG" | cut -d/ -f2)
+  cd "packages/$PKG_DIR"
+
   PACKAGE_NAME=$(jq -r .name package.json)
+  LATEST_STABLE_VERSION=$(npm view $PACKAGE_NAME version || jq -r .version package.json)
 
-  if [[ ! -f "package.json" ]]; then
-    echo "Error: package.json not found in $(pwd)"
-    exit 1
-  fi
-
-  LATEST_STABLE_VERSION=$(npm view $PACKAGE_NAME version)
-
-  if [[ -z "$LATEST_STABLE_VERSION" ]]; then
-    echo "No previous stable tags found for $PACKAGE_NAME, using package.json version"
-    LATEST_STABLE_VERSION=$(jq -r .version package.json)
-  fi
-
-  echo "Latest stable version for $PACKAGE_NAME: $LATEST_STABLE_VERSION"
+  echo "Latest version: $LATEST_STABLE_VERSION"
 
   if [[ "$VERSION_BUMP" == "prerelease" ]]; then
-
-    LATEST_BETA_VERSION=$(npm view $PACKAGE_NAME versions --json | jq -r '"'"'[.[] | select(contains("-beta"))] | max // empty'"'"')
-
+    LATEST_BETA_VERSION=$(npm view $PACKAGE_NAME versions --json | jq -r '[.[] | select(contains("-beta"))] | max // empty')
     if [[ -n "$LATEST_BETA_VERSION" ]]; then
       BETA_NUMBER=$(echo "$LATEST_BETA_VERSION" | sed -E "s/.*-beta\.([0-9]+)/\1/")
       NEW_VERSION="${LATEST_STABLE_VERSION}-beta.$((BETA_NUMBER + 1))"
     else
       NEW_VERSION="${LATEST_STABLE_VERSION}-beta.0"
     fi
-
-    echo "New beta version for $PACKAGE_NAME: $NEW_VERSION"
   else
     NEW_VERSION=$(increment_version "$LATEST_STABLE_VERSION" "$VERSION_BUMP")
   fi
 
-  echo "Bumping $PACKAGE_NAME from $LATEST_STABLE_VERSION to $NEW_VERSION"
+  echo "🔧 Bumping $PACKAGE_NAME to $NEW_VERSION"
+  jq --arg new_version "$NEW_VERSION" '.version = $new_version' package.json > package.tmp.json && mv package.tmp.json package.json
 
-  jq --arg new_version "$NEW_VERSION" ".version = \$new_version" package.json > package.tmp.json && mv package.tmp.json package.json
-
-  if [[ $VERSION_BUMP == "prerelease" ]]; then
+  if [[ "$VERSION_BUMP" == "prerelease" ]]; then
     yarn build
     npm publish --tag beta --access public
   else
     if [[ "$IS_PR" != "true" ]]; then
       git add package.json
-      git -c user.email="'"$COMMIT_EMAIL"'" \
-          -c user.name="'"$COMMIT_NAME"'" \
+      git -c user.email="$COMMIT_EMAIL" \
+          -c user.name="$COMMIT_NAME" \
           commit -m "V$NEW_VERSION"
-      
       yarn build
       npm publish --access public
       git tag "$PACKAGE_NAME@$NEW_VERSION"
       git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main --tags
     else
-      echo "Skipping commit since this is a pull request."
+      echo "Skipping commit for PR."
     fi
   fi
-'
 
+  cd - > /dev/null
+done
+
+# Cleanup
 yarn config unset yarnPath
 jq 'del(.packageManager)' package.json > temp.json && mv temp.json package.json
 

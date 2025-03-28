@@ -5,4 +5,4 @@ export interface Vehicle {
 
 export const createVehicle = (name: string, age: number): Vehicle => ({ name, age });
 
-export const showVehicle = (vehicle: Vehicle) => console.log(`${vehicle.name} is ${vehicle.age} years old.`);
+export const showVehicle = (vehicle: Vehicle) => console.log(`${vehicle.name} is ${vehicle.age} now years old.`);
