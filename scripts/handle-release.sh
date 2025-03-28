@@ -39,26 +39,25 @@ fi
 
 echo "Version bump type detected: $VERSION_BUMP"
 
-# Get changed packages (smart diff)
-# Get changed packages (smart PR diff support)
 if [[ "$IS_PR" == "true" && -n "$PR_BRANCH" ]]; then
-  echo "PR-based comment detected. Fetching and comparing with PR branch: $PR_BRANCH"
+  echo "🧠 PR-based release from comment. Fetching PR branch: $PR_BRANCH"
   git fetch origin "$PR_BRANCH:$PR_BRANCH"
   CHANGED=$(git diff --name-only origin/main..."$PR_BRANCH" | grep '^packages/' | cut -d/ -f2 | sort -u)
-else
-  CHANGED=$(git diff --name-only origin/main...HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
 
-  if [[ -z "$CHANGED" ]]; then
-    echo "No changes detected via commit diff. Falling back to full working tree diff..."
-    CHANGED=$(git diff --name-only origin/main HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
-  fi
+elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+  echo "🚀 Push-based release. Getting changes from last commit."
+  CHANGED=$(git diff --name-only HEAD~1 | grep '^packages/' | cut -d/ -f2 | sort -u)
+
+else
+  echo "🕵️ Unknown context. Falling back to working tree diff."
+  CHANGED=$(git diff --name-only origin/main HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
 fi
 
 echo "Changed packages:"
 echo "$CHANGED"
 
 if [[ -z "$CHANGED" ]]; then
-  echo "No packages changed. Skipping publish."
+  echo "❌ No packages changed. Skipping publish."
   exit 0
 fi
 
