@@ -10,7 +10,7 @@ echo "Using committer details - Name: $COMMIT_NAME, Email: $COMMIT_EMAIL"
 echo "//registry.npmjs.org/:_authToken=${NPM_TOKEN}" > ~/.npmrc
 
 git fetch --tags
-git fetch origin main
+git fetch origin main:refs/remotes/origin/main
 
 IS_PR=false
 if [[ "$GITHUB_EVENT_NAME" == "issue_comment" ]]; then
@@ -42,6 +42,11 @@ echo "Version bump type detected: $VERSION_BUMP"
 # Get changed packages
 CHANGED=$(git diff --name-only origin/main...HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
 echo "Changed packages: $CHANGED"
+
+if [[ -z "$CHANGED" ]]; then
+  echo "No packages changed. Skipping publish."
+  exit 0
+fi
 
 # Get topological order
 TOPO_ORDER=$(yarn workspaces foreach --all --topological --no-private exec node -p "require('./package.json').name" 2>/dev/null | grep '^@' | sed 's/\[//;s/\]://')
