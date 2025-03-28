@@ -19,7 +19,10 @@ if [[ $1 == "beta" ]]; then
   PRERELEASE_SUFFIX="beta"
 else
   LAST_COMMIT_MSG=$(git log -1 --pretty=%B)
-  if [[ $LAST_COMMIT_MSG == patch:* || $LAST_COMMIT_MSG == chore:* ]]; then
+
+  if [[ $LAST_COMMIT_MSG == patch:* ]]; then
+    VERSION_BUMP="patch"
+  elif [[ $LAST_COMMIT_MSG == chore:* ]]; then
     VERSION_BUMP="patch"
   elif [[ $LAST_COMMIT_MSG == fix:* ]]; then
     VERSION_BUMP="minor"
@@ -33,36 +36,26 @@ fi
 
 echo "Version bump type detected: $VERSION_BUMP"
 
-get_latest_package_tag() {
-  local package_name=$1
-  git tag --list "$package_name@*" | sort -Vr | head -n 1
-}
-
-CHANGED=()
-
 if [[ "$IS_PR" == "true" && -n "$PR_BRANCH" ]]; then
   git fetch origin "$PR_BRANCH:$PR_BRANCH"
   CHANGED=$(git diff --name-only origin/main..."$PR_BRANCH" | grep '^packages/' | cut -d/ -f2 | sort -u)
-else
-  for PKG in $(ls packages); do
-    FULL_NAME="@shanmukh0504/$PKG"
-    TAG=$(get_latest_package_tag "$FULL_NAME")
 
-    if [[ -n "$TAG" ]]; then
-      DIFF=$(git diff --name-only "$TAG"...HEAD -- "packages/$PKG")
-      if [[ -n "$DIFF" ]]; then
-        CHANGED+=("$PKG")
-      fi
-    else
-      CHANGED+=("$PKG")
-    fi
-  done
+elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
+  CHANGED=$(git diff --name-only HEAD~1 | grep '^packages/' | cut -d/ -f2 | sort -u)
 fi
 
 echo "Changed packages:"
-printf '%s\n' "${CHANGED[@]}"
+echo "$CHANGED"
 
-if [[ ${#CHANGED[@]} -eq 0 ]]; then
+if [[ -z "$CHANGED" ]]; then
+  echo "No packages changed. Skipping publish."
+  exit 0
+fi
+
+echo "Changed packages:"
+echo "$CHANGED"
+
+if [[ -z "$CHANGED" ]]; then
   echo "No packages changed. Skipping publish."
   exit 0
 fi
@@ -80,7 +73,7 @@ done
 
 declare -A SHOULD_PUBLISH
 queue=()
-for CHG in "${CHANGED[@]}"; do
+for CHG in $CHANGED; do
   CHG_PKG="@shanmukh0504/$CHG"
   SHOULD_PUBLISH[$CHG_PKG]=1
   queue+=("$CHG_PKG")
