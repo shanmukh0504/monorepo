@@ -1,7 +1,7 @@
+
 #!/bin/bash
 
 set -e
-set -x
 
 COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
 COMMIT_NAME=$(git log -1 --pretty=format:'%an')
@@ -76,62 +76,26 @@ increment_version() {
 
 export -f increment_version
 
-# Get changes against the main branch
-AFFECTED_FILES=$(git diff --name-only origin/main)
-AFFECTED_PACKAGES=()
+yarn workspaces foreach --all --topological --no-private exec bash -c '
+  VERSION_BUMP="'$VERSION_BUMP'"
+  PACKAGE_NAME=$(jq -r .name package.json)
 
-# Identify affected packages based on changed files
-for FILE in $AFFECTED_FILES; do
-  if [[ "$FILE" =~ ^packages/(.*)/package.json ]]; then
-    PACKAGE_NAME="${BASH_REMATCH[1]}"
-    AFFECTED_PACKAGES+=("$PACKAGE_NAME")
+  if [[ ! -f "package.json" ]]; then
+    echo "Error: package.json not found in $(pwd)"
+    exit 1
   fi
-done
 
-# Build a dependency graph
-declare -A DEPENDENCY_GRAPH
-for PACKAGE in "${AFFECTED_PACKAGES[@]}"; do
-  DEPENDENCIES=$(jq -r '.dependencies | keys | .[]' "packages/$PACKAGE/package.json")
-  for DEP in $DEPENDENCIES; do
-    DEPENDENCY_GRAPH["$DEP"]="$PACKAGE"
-  done
-done
-
-# Topologically sort the affected packages to determine the publishing order
-PUBLISH_ORDER=()
-VISITED=()
-
-function topological_sort() {
-  local NODE=$1
-  if [[ -z "${VISITED[$NODE]}" ]]; then
-    VISITED[$NODE]=1
-    DEPENDENCIES=$(jq -r '.dependencies | keys | .[]' "packages/$NODE/package.json")
-    for DEP in $DEPENDENCIES; do
-      topological_sort "$DEP"
-    done
-    PUBLISH_ORDER+=("$NODE")
-  fi
-}
-
-# Perform DFS for each affected package
-for PACKAGE in "${AFFECTED_PACKAGES[@]}"; do
-  topological_sort "$PACKAGE"
-done
-
-# Loop through packages to bump versions and publish them
-for PACKAGE in "${PUBLISH_ORDER[@]}"; do
-  VERSION_BUMP="${VERSION_BUMP}"
-  PACKAGE_NAME=$PACKAGE
   LATEST_STABLE_VERSION=$(npm view $PACKAGE_NAME version)
 
   if [[ -z "$LATEST_STABLE_VERSION" ]]; then
     echo "No previous stable tags found for $PACKAGE_NAME, using package.json version"
-    LATEST_STABLE_VERSION=$(jq -r .version "packages/$PACKAGE_NAME/package.json")
+    LATEST_STABLE_VERSION=$(jq -r .version package.json)
   fi
 
   echo "Latest stable version for $PACKAGE_NAME: $LATEST_STABLE_VERSION"
 
   if [[ "$VERSION_BUMP" == "prerelease" ]]; then
+
     LATEST_BETA_VERSION=$(npm view $PACKAGE_NAME versions --json | jq -r '"'"'[.[] | select(contains("-beta"))] | max // empty'"'"')
 
     if [[ -n "$LATEST_BETA_VERSION" ]]; then
@@ -148,27 +112,27 @@ for PACKAGE in "${PUBLISH_ORDER[@]}"; do
 
   echo "Bumping $PACKAGE_NAME from $LATEST_STABLE_VERSION to $NEW_VERSION"
 
-  jq --arg new_version "$NEW_VERSION" ".version = \$new_version" "packages/$PACKAGE_NAME/package.json" > package.tmp.json && mv package.tmp.json "packages/$PACKAGE_NAME/package.json"
+  jq --arg new_version "$NEW_VERSION" ".version = \$new_version" package.json > package.tmp.json && mv package.tmp.json package.json
 
   if [[ $VERSION_BUMP == "prerelease" ]]; then
-    yarn build --cwd "packages/$PACKAGE_NAME"
-    npm publish --tag beta --access public --cwd "packages/$PACKAGE_NAME"
+    yarn build
+    npm publish --tag beta --access public
   else
     if [[ "$IS_PR" != "true" ]]; then
-      git add "packages/$PACKAGE_NAME/package.json"
+      git add package.json
       git -c user.email="'"$COMMIT_EMAIL"'" \
           -c user.name="'"$COMMIT_NAME"'" \
           commit -m "V$NEW_VERSION"
       
-      yarn build --cwd "packages/$PACKAGE_NAME"
-      npm publish --access public --cwd "packages/$PACKAGE_NAME"
+      yarn build
+      npm publish --access public
       git tag "$PACKAGE_NAME@$NEW_VERSION"
       git push https://x-access-token:${GH_PAT}@github.com/shanmukh0504/monorepo.git HEAD:main --tags
     else
       echo "Skipping commit since this is a pull request."
     fi
   fi
-done
+'
 
 yarn config unset yarnPath
 jq 'del(.packageManager)' package.json > temp.json && mv temp.json package.json
