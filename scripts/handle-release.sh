@@ -1,6 +1,5 @@
 #!/bin/bash
 set -e
-set -x
 
 COMMIT_EMAIL=$(git log -1 --pretty=format:'%ae')
 COMMIT_NAME=$(git log -1 --pretty=format:'%an')
