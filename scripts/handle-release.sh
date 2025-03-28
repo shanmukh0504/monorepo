@@ -40,11 +40,26 @@ fi
 echo "Version bump type detected: $VERSION_BUMP"
 
 # Get changed packages (smart diff)
-CHANGED=$(git diff --name-only origin/main...HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
+# Get changed packages (smart PR diff support)
+if [[ "$IS_PR" == "true" && -n "$PR_BRANCH" ]]; then
+  echo "PR-based comment detected. Fetching and comparing with PR branch: $PR_BRANCH"
+  git fetch origin "$PR_BRANCH:$PR_BRANCH"
+  CHANGED=$(git diff --name-only origin/main..."$PR_BRANCH" | grep '^packages/' | cut -d/ -f2 | sort -u)
+else
+  CHANGED=$(git diff --name-only origin/main...HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
+
+  if [[ -z "$CHANGED" ]]; then
+    echo "No changes detected via commit diff. Falling back to full working tree diff..."
+    CHANGED=$(git diff --name-only origin/main HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
+  fi
+fi
+
+echo "Changed packages:"
+echo "$CHANGED"
 
 if [[ -z "$CHANGED" ]]; then
-  echo "No changes detected via commit diff. Falling back to full working tree diff..."
-  CHANGED=$(git diff --name-only origin/main HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
+  echo "No packages changed. Skipping publish."
+  exit 0
 fi
 
 echo "Changed packages:"
