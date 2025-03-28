@@ -31,7 +31,7 @@ jobs:
 
       - name: Get Commenter's Username
         id: get-commenter
-        run: echo "COMMENTER=${{ github.event.comment.user.login }}" >> $GITHUB_ENV
+        run: echo "COMMENTER=${{ github.event.comment.user.login }}"
 
       - name: Fetch Commenter's Permissions
         id: get-permission
@@ -44,9 +44,9 @@ jobs:
           echo "Commenter's permission level: $PERMISSION"
 
           if [[ "$PERMISSION" == "admin" || "$PERMISSION" == "maintain" ]]; then
-            echo "is_admin_or_maintain=true" >> $GITHUB_ENV
+            echo "is_admin_or_maintain=true"
           else
-            echo "is_admin_or_maintain=false" >> $GITHUB_ENV
+            echo "is_admin_or_maintain=false"
             exit 1
           fi
 
@@ -82,8 +82,6 @@ jobs:
           PR_BRANCH: ${{ env.PR_BRANCH }}
           PR_REPO: ${{ env.PR_REPO }}
         run: ./scripts/handle-release.sh beta
-        if: env.is_admin_or_maintain == 'true'
-
 
   release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main' && (contains(github.event.head_commit.message, 'patch') || contains(github.event.head_commit.message, 'chore') || contains(github.event.head_commit.message, 'fix') || contains(github.event.head_commit.message, 'feat'))
