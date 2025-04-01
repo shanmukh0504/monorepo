@@ -41,7 +41,10 @@ if [[ "$IS_PR" == "true" && -n "$PR_BRANCH" ]]; then
   CHANGED=$(git diff --name-only origin/main..."$PR_BRANCH" | grep '^packages/' | cut -d/ -f2 | sort -u)
 
 elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
-  CHANGED=$(git diff --name-only HEAD~1 | grep '^packages/' | cut -d/ -f2 | sort -u)
+  LATEST_TAG=$(git describe --tags --abbrev=0)
+  echo "Latest tag found: $LATEST_TAG"
+
+  CHANGED=$(git diff --name-only "$LATEST_TAG"...HEAD | grep '^packages/' | cut -d/ -f2 | sort -u)
 fi
 
 echo "Changed packages:"
